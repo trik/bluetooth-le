@@ -59,6 +59,7 @@ Below is an index of all the methods available.
 - [`writeWithoutResponse(...)`](#writewithoutresponse)
 - [`startNotifications(...)`](#startnotifications)
 - [`stopNotifications(...)`](#stopnotifications)
+- [`getCharacteristics(...)`](#getcharacteristics)
 - [Interfaces](#interfaces)
 - [Enums](#enums)
 
@@ -533,6 +534,21 @@ Stop listening to the changes of the value of a characteristic. For an example, 
 
 ---
 
+### getCharacteristics(...)
+
+```typescript
+getCharacteristics(deviceId: string, service: string) => Promise<{ characteristics: BleCharacteristic[]; }>
+```
+
+| Param          | Type                |
+| -------------- | ------------------- |
+| **`deviceId`** | <code>string</code> |
+| **`service`**  | <code>string</code> |
+
+**Returns:** <code>Promise&lt;{ characteristics: BleCharacteristic[]; }&gt;</code>
+
+---
+
 ### Interfaces
 
 #### DisplayStrings
@@ -574,6 +590,7 @@ Stop listening to the changes of the value of a characteristic. For an example, 
 | **`manufacturerData`** | <code>{ [key: string]: <a href="#dataview">DataView</a>; }</code> | Manufacturer data, key is a company identifier and value is the data.                                                                                                                                                                                                                                 |
 | **`serviceData`**      | <code>{ [key: string]: <a href="#dataview">DataView</a>; }</code> | Service data, key is a service UUID and value is the data.                                                                                                                                                                                                                                            |
 | **`uuids`**            | <code>string[]</code>                                             | Advertised services.                                                                                                                                                                                                                                                                                  |
+| **`characteristics`**  | <code>BleCharacteristic[]</code>                                  | Advertised characteristics.                                                                                                                                                                                                                                                                           |
 | **`rawAdvertisement`** | <code><a href="#dataview">DataView</a></code>                     | Raw advertisement data (**Android** only).                                                                                                                                                                                                                                                            |
 
 #### DataView
@@ -617,6 +634,20 @@ buffer as needed.
 | Method    | Signature                                                                               | Description                                                     |
 | --------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | **slice** | (begin: number, end?: number \| undefined) =&gt; <a href="#arraybuffer">ArrayBuffer</a> | Returns a section of an <a href="#arraybuffer">ArrayBuffer</a>. |
+
+#### BleCharacteristic
+
+| Prop              | Type                                       |
+| ----------------- | ------------------------------------------ |
+| **`uuid`**        | <code>string</code>                        |
+| **`descriptors`** | <code>BleCharacteristicDescriptor[]</code> |
+
+#### BleCharacteristicDescriptor
+
+| Prop        | Type                |
+| ----------- | ------------------- |
+| **`uuid`**  | <code>string</code> |
+| **`value`** | <code>string</code> |
 
 ### Enums
 

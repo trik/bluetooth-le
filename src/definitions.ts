@@ -117,6 +117,21 @@ export interface ScanResultInternal<T = Data> {
   rawAdvertisement?: T;
 }
 
+export interface GetCharacteristicsOptions {
+  deviceId: string;
+  service: string;
+}
+
+export interface BleCharacteristicDescriptor {
+  uuid: string;
+  value?: string;
+}
+
+export interface BleCharacteristic {
+  uuid: string;
+  descriptors: BleCharacteristicDescriptor[];
+}
+
 export interface ScanResult {
   /**
    * The peripheral device that was found in the scan.
@@ -148,6 +163,10 @@ export interface ScanResult {
    * Advertised services.
    */
   uuids?: string[];
+  /**
+   * Advertised characteristics.
+   */
+  characteristics?: BleCharacteristic[];
   /**
    * Raw advertisement data (**Android** only).
    */
@@ -184,4 +203,5 @@ export interface BluetoothLePlugin {
   writeWithoutResponse(options: WriteOptions): Promise<void>;
   startNotifications(options: ReadOptions): Promise<void>;
   stopNotifications(options: ReadOptions): Promise<void>;
+  getCharacteristics(options: GetCharacteristicsOptions): Promise<{characteristics: BleCharacteristic[]}>;
 }

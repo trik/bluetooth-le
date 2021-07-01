@@ -433,6 +433,23 @@ class BluetoothLe : Plugin() {
             })
     }
 
+    @PluginMethod
+    fun getCharacteristics(call: PluginCall) {
+        val device = getDevice(call) ?: return
+        val service = getService(call)?: return
+        device.getCharacteristics(
+            service
+        ) { result ->
+            run {
+                if (!result.success) {
+                    call.reject(result.message!!)
+                } else {
+                    call.resolve(getCharacteristicsResult(result.characteristics!!))
+                }
+            }
+        }
+    }
+
     private fun assertBluetoothAdapter(call: PluginCall): Boolean? {
         if (bluetoothAdapter == null) {
             call.reject("Bluetooth LE not initialized.")
@@ -606,7 +623,7 @@ class BluetoothLe : Plugin() {
         return device
     }
 
-    private fun getCharacteristic(call: PluginCall): Pair<UUID, UUID>? {
+    private fun getService(call: PluginCall): UUID? {
         val serviceString = call.getString("service", null)
         val serviceUUID: UUID?
         try {
@@ -619,6 +636,11 @@ class BluetoothLe : Plugin() {
             call.reject("Service UUID required.")
             return null
         }
+        return serviceUUID;
+    }
+
+    private fun getCharacteristic(call: PluginCall): Pair<UUID, UUID>? {
+        val serviceUUID = getService(call) ?: return null
         val characteristicString = call.getString("characteristic", null)
         val characteristicUUID: UUID?
         try {
@@ -632,5 +654,31 @@ class BluetoothLe : Plugin() {
             return null
         }
         return Pair(serviceUUID, characteristicUUID)
+    }
+
+    private fun getCharacteristicsResult(characteristics: List<BluetoothGattCharacteristic>): JSObject {
+        val result = JSObject()
+        val items = JSArray()
+
+        characteristics.forEach { ch ->
+            val characteristic = JSObject()
+            characteristic.put("uuid", ch.uuid.toString())
+            val descriptors = JSArray()
+            ch.descriptors.forEach { d ->
+                val descriptor = JSObject()
+                descriptor.put("uuid", d.uuid.toString())
+                if (d.value != null && d.value.isNotEmpty()) {
+                    descriptor.put("value", bytesToString(d.value))
+                } else {
+                    descriptor.put("value", null)
+                }
+                descriptors.put(descriptor)
+            }
+            characteristic.put("descriptors", descriptors)
+            items.put(characteristic)
+        }
+
+        result.put("characteristics", items)
+        return result
     }
 }

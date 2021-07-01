@@ -5,6 +5,7 @@ import type { DisplayStrings } from './config';
 import { dataViewToHexString, hexStringToDataView } from './conversion';
 import type {
   BleDevice,
+  BleCharacteristic,
   Data,
   ReadResult,
   RequestBleDeviceOptions,
@@ -165,6 +166,11 @@ export interface BleClientInterface {
     service: string,
     characteristic: string,
   ): Promise<void>;
+
+  getCharacteristics(
+    deviceId: string,
+    service: string,
+  ): Promise<{characteristics: BleCharacteristic[]}>;
 }
 
 class BleClientClass implements BleClientInterface {
@@ -406,6 +412,18 @@ class BleClientClass implements BleClientInterface {
         deviceId,
         service,
         characteristic,
+      });
+    });
+  }
+
+  async getCharacteristics(
+    deviceId: string,
+    service: string,
+  ): Promise<{characteristics: BleCharacteristic[]}> {
+    return await this.queue(async () => {
+      return await BluetoothLe.getCharacteristics({
+        deviceId,
+        service,
       });
     });
   }

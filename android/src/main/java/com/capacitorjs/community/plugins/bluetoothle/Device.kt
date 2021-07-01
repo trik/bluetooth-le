@@ -9,13 +9,25 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.getcapacitor.JSArray
+import com.getcapacitor.JSObject
 import java.util.*
 import kotlin.collections.HashMap
+import kotlin.collections.retainAll
 
 class CallbackResponse(
     val success: Boolean,
     val value: String,
 )
+
+class GetCharacteristicsCallbackResponse(
+    val success: Boolean,
+    val message: String?,
+    val characteristics: List<BluetoothGattCharacteristic>?,
+) {
+    constructor(success: Boolean, characteristics: List<BluetoothGattCharacteristic>) : this(success, null, characteristics)
+    constructor(success: Boolean, message: String) : this(success, message, null)
+}
 
 class Device(
     private val context: Context,
@@ -41,6 +53,8 @@ class Device(
     private var timeoutMap = HashMap<String, Handler>()
     private var setNotificationsKey = ""
     private var bondStateReceiver: BroadcastReceiver? = null
+    private var descriptorsReads: MutableList<BluetoothGattDescriptor> = mutableListOf()
+    private var getCharacteristicsCallback: ((GetCharacteristicsCallbackResponse) -> Unit)? = null
 
     private val gattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(
@@ -147,6 +161,31 @@ class Device(
             }
             setNotificationsKey = ""
 
+        }
+
+        override fun onDescriptorRead(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int
+        ) {
+            super.onDescriptorRead(gatt, descriptor, status)
+
+            if (descriptorsReads.contains(descriptor)) {
+                descriptorsReads.remove(descriptor)
+            }
+            if (descriptorsReads.isEmpty()) {
+                if (getCharacteristicsCallback != null) {
+                    val characteristics = descriptor.characteristic.service.characteristics
+                    val response = GetCharacteristicsCallbackResponse(true, characteristics = characteristics)
+                    getCharacteristicsCallback!!.invoke(response)
+                    getCharacteristicsCallback = null
+                }
+                val key = "getCharacteristics"
+                timeoutMap[key]?.removeCallbacksAndMessages(null)
+                timeoutMap.remove(key)
+            } else {
+                gatt.readDescriptor(descriptorsReads[0])
+            }
         }
     }
 
@@ -360,6 +399,35 @@ class Device(
             return
         }
         // wait for onDescriptorWrite
+    }
+
+    fun getCharacteristics(serviceUUID: UUID, callback: (GetCharacteristicsCallbackResponse) -> Unit) {
+        val key = "getCharacteristics"
+        val service = bluetoothGatt?.getService(serviceUUID)
+        val characteristics = service?.characteristics
+        getCharacteristicsCallback = callback
+        if (service == null || characteristics == null) {
+            reject(key, "Get characteristics failed.")
+            return
+        }
+        if (characteristics.size == 0) {
+            callback(GetCharacteristicsCallbackResponse(true, emptyList()))
+            return
+        }
+        descriptorsReads = mutableListOf()
+        characteristics.forEach { ch ->
+            descriptorsReads.addAll(ch.descriptors)
+        }
+        if (descriptorsReads.isEmpty()) {
+            callback(GetCharacteristicsCallbackResponse(true, characteristics))
+            return
+        }
+        bluetoothGatt?.readDescriptor(descriptorsReads[0])
+        val handler = Handler(Looper.getMainLooper())
+        timeoutMap[key] = handler
+        handler.postDelayed({
+            callback.invoke(GetCharacteristicsCallbackResponse(false, "Get characteristics timeout."))
+        }, DEFAULT_TIMEOUT * descriptorsReads.size)
     }
 
     private fun resolve(key: String, value: String) {

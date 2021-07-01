@@ -7,9 +7,11 @@ import {
 } from './conversion';
 import type {
   BleDevice,
+  BleCharacteristic,
   BluetoothLePlugin,
   BooleanResult,
   DeviceIdOptions,
+  GetCharacteristicsOptions,
   ReadOptions,
   ReadResult,
   RequestBleDeviceOptions,
@@ -204,6 +206,24 @@ export class BluetoothLeWeb extends WebPlugin implements BluetoothLePlugin {
       this.onCharacteristicValueChanged,
     );
     await characteristic?.startNotifications();
+  }
+
+  async getCharacteristics(options: GetCharacteristicsOptions): Promise<{characteristics: BleCharacteristic[]}> {
+    const service = await this.getDevice(
+      options.deviceId,
+    ).gatt?.getPrimaryService(options?.service);
+    const characteristics = await service?.getCharacteristics();
+    const results = [] as BleCharacteristic[];
+    if (characteristics != null) {
+      for (const characteristic of characteristics) {
+        const descriptors = await characteristic.getDescriptors();
+        results.push({
+          uuid: characteristic.uuid,
+          descriptors: descriptors.map(d => ({uuid: d.uuid, value: d.value?.toString()})),
+        })
+      }
+    }
+    return {characteristics: results};
   }
 
   private onCharacteristicValueChanged(event: Event) {

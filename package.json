@@ -18,7 +18,8 @@
     "swiftlint": "node-swiftlint",
     "docgen": "docgen --api BleClientInterface --output-readme README.md --output-json dist/docs.json",
     "postdocgen": "prettier README.md --write",
-    "build": "npm run clean && npm run docgen && tsc && rollup -c rollup.config.js",
+    "build-electron": "tsc --project electron/tsconfig.json && rollup -c electron/rollup.config.js && rimraf ./electron/build",
+    "build": "npm run clean && npm run docgen && tsc && rollup -c rollup.config.js && npm run build-electron",
     "clean": "rimraf ./dist",
     "watch": "tsc --watch",
     "prepublishOnly": "npm run build",
@@ -37,6 +38,7 @@
     "throat": "^6.0.1"
   },
   "devDependencies": {
+    "@abandonware/noble": "^1.9.2-15",
     "@capacitor/android": "^3.2.5",
     "@capacitor/cli": "^3.2.5",
     "@capacitor/core": "^3.2.5",
@@ -48,6 +50,7 @@
     "@types/jest": "^27.0.2",
     "eslint": "^7.0.0",
     "jest": "^27.3.1",
+    "node-ble": "^1.5.0",
     "prettier": "^2.4.1",
     "prettier-plugin-java": "^1.5.0",
     "rimraf": "^3.0.2",
@@ -65,7 +68,8 @@
     "android/build.gradle",
     "dist/",
     "ios/Plugin/",
-    "CapacitorCommunityBluetoothLe.podspec"
+    "CapacitorCommunityBluetoothLe.podspec",
+    "electron/"
   ],
   "keywords": [
     "capacitor",
@@ -79,6 +83,9 @@
     },
     "android": {
       "src": "android"
+    },
+    "electron": {
+      "src": "electron"
     }
   },
   "prettier": "@ionic/prettier-config",

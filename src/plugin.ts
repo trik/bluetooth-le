@@ -4,4 +4,5 @@ import type { BluetoothLePlugin } from './definitions';
 
 export const BluetoothLe = registerPlugin<BluetoothLePlugin>('BluetoothLe', {
   web: () => import('./web').then((m) => m.BluetoothLe),
+  electron: () => (window as any).CapacitorCustomPlatform.plugins.BluetoothLe,
 });

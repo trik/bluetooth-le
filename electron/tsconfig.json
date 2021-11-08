@@ -6,14 +6,15 @@
     "noEmitHelpers": true,
     "importHelpers": true,
     "lib": ["dom", "es2020"],
-    "module": "commonjs",
+    "module": "es2020",
     "noImplicitAny": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "outDir": "build",
+    "moduleResolution": "node",
     "sourceMap": true,
     "strict": false,
-    "target": "ES2017"
+    "target": "es2017"
   },
   "include": ["src/**/*"]
 }

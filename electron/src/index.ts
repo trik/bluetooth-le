@@ -1,5 +1,5 @@
-import type { CapacitorException, ListenerCallback, PluginListenerHandle } from '@capacitor/core';
-import { Capacitor, ExceptionCode } from '@capacitor/core';
+import { CapacitorException } from '@capacitor/core';
+import { EventEmitter } from 'events';
 
 import type {
   BleDevice,
@@ -35,68 +35,13 @@ const dataToString = (buffer: Buffer, start = 0): string => {
   return str;
 };
 
-export class BluetoothLe implements BluetoothLePlugin {
+export class BluetoothLe extends EventEmitter implements Omit<BluetoothLePlugin, 'addListener'> {
   private deviceManager: DeviceManager | undefined;
   private deviceMap = new Map<string, Device>();
-  protected listeners: { [eventName: string]: ListenerCallback[] } = {};
 
   constructor() {
+    super();
     this.deviceManager = new DeviceManager();
-  }
-
-  addListener(eventName: string, listenerFunc: ListenerCallback): Promise<PluginListenerHandle> & PluginListenerHandle {
-    const listeners = this.listeners[eventName];
-    if (!listeners) {
-      this.listeners[eventName] = [];
-    }
-
-    this.listeners[eventName].push(listenerFunc);
-
-    const remove = async () => this.removeListener(eventName, listenerFunc);
-
-    const p: any = Promise.resolve({ remove });
-
-    Object.defineProperty(p, 'remove', {
-      value: async () => {
-        console.warn(`Using addListener() without 'await' is deprecated.`);
-        await remove();
-      },
-    });
-
-    return p;
-  }
-
-  protected notifyListeners(eventName: string, data: any): void {
-    const listeners = this.listeners[eventName];
-    if (listeners) {
-      listeners.forEach((listener) => listener(data));
-    }
-  }
-
-  async removeAllListeners(): Promise<void> {
-    this.listeners = {};
-  }
-
-  protected hasListeners(eventName: string): boolean {
-    return !!this.listeners[eventName].length;
-  }
-
-  protected unimplemented(msg = 'not implemented'): CapacitorException {
-    return new Capacitor.Exception(msg, ExceptionCode.Unimplemented);
-  }
-
-  protected unavailable(msg = 'not available'): CapacitorException {
-    return new Capacitor.Exception(msg, ExceptionCode.Unavailable);
-  }
-
-  private async removeListener(eventName: string, listenerFunc: ListenerCallback): Promise<void> {
-    const listeners = this.listeners[eventName];
-    if (!listeners) {
-      return;
-    }
-
-    const index = listeners.indexOf(listenerFunc);
-    this.listeners[eventName].splice(index, 1);
   }
 
   async initialize(): Promise<void> {
@@ -117,7 +62,7 @@ export class BluetoothLe implements BluetoothLePlugin {
 
   async startEnabledNotifications(): Promise<void> {
     this.deviceManager.registerStateReceiver((enabled) => {
-      this.notifyListeners('onEnabledChanged', { value: enabled });
+      this.emit('onEnabledChanged', { value: enabled });
     });
   }
 
@@ -146,7 +91,7 @@ export class BluetoothLe implements BluetoothLePlugin {
   }
 
   async requestDevice(options?: RequestBleDeviceOptions): Promise<BleDevice> {
-    const { name, namePrefix } = options;
+    const { name, namePrefix } = this.getScanOptions(options);
     const serviceUUIDs = this.getServiceUUIDs(options);
 
     return new Promise<BleDevice>((resolve) => {
@@ -161,14 +106,14 @@ export class BluetoothLe implements BluetoothLePlugin {
   }
 
   async requestLEScan(options?: RequestBleDeviceOptions): Promise<void> {
-    const { allowDuplicates, name, namePrefix } = options;
+    const { allowDuplicates, name, namePrefix } = this.getScanOptions(options);
     const serviceUUIDs = this.getServiceUUIDs(options);
 
     this.deviceManager.removeAllListeners('scanResult');
     this.deviceManager.on('scanResult', (peripheral: Peripheral) => {
       const data = this.getScanResult(peripheral);
       this.deviceMap.set(peripheral.id, { bleDevice: data.device, peripheral });
-      this.notifyListeners('scanResult', { data });
+      this.emit('onScanResult', data);
     });
     return this.deviceManager.startScanning(serviceUUIDs, name, namePrefix, allowDuplicates);
   }
@@ -189,7 +134,7 @@ export class BluetoothLe implements BluetoothLePlugin {
     const { peripheral } = this.getDevice(options, false);
     const disconnectKey = `disconnected|${peripheral.id}`;
     this.deviceManager.removeAllListeners(disconnectKey);
-    this.deviceManager.on(disconnectKey, () => this.notifyListeners(disconnectKey, {}));
+    this.deviceManager.on(disconnectKey, () => this.emit(disconnectKey, {}));
     await this.deviceManager.connect(peripheral);
   }
 
@@ -278,7 +223,7 @@ export class BluetoothLe implements BluetoothLePlugin {
     const listenerId = `notification|${deviceId}|${service}|${characteristic}`;
     this.deviceManager.removeAllListeners(listenerId);
     this.deviceManager.on(listenerId, (value: Buffer) => {
-      this.notifyListeners(listenerId, { value: new DataView(value) });
+      this.emit(listenerId, { value: new DataView(value) });
     });
     return this.deviceManager.startNotifications(deviceId, service, characteristic);
   }
@@ -330,7 +275,11 @@ export class BluetoothLe implements BluetoothLePlugin {
     };
   }
 
-  private getManufacturerData(buffer: Buffer): { [key: string]: string } {
+  private getManufacturerData(bufferStr: string): { [key: string]: string } | undefined {
+    if (bufferStr == null || bufferStr.length === 0) {
+      return undefined;
+    }
+    const buffer = Buffer.from(bufferStr, 'base64');
     if (buffer.length < 2) {
       return {};
     }
@@ -340,15 +289,26 @@ export class BluetoothLe implements BluetoothLePlugin {
     return data;
   }
 
-  private getServiceData(data: { uuid: string; data: Buffer }[]): { [key: string]: string } {
+  private getServiceData(data: { uuid: string; data: string }[]): { [key: string]: string } {
     const result = {} as { [key: string]: string };
     data.forEach((d) => {
-      result[d.uuid] = dataToString(d.data);
+      result[d.uuid] = dataToString(Buffer.from(d.data, 'base64'));
     });
     return result;
   }
 
-  // private unavailable(message: string): CapacitorException {
-  //   return new CapacitorException(message);
-  // }
+  private getScanOptions(options?: RequestBleDeviceOptions): RequestBleDeviceOptions {
+    options = options || {};
+    if (options.allowDuplicates == null) {
+      options.allowDuplicates = false;
+    }
+    if (options.services == null) {
+      options.services = [];
+    }
+    return options;
+  }
+
+  private unavailable(message: string): CapacitorException {
+    return new CapacitorException(message);
+  }
 }

@@ -1,5 +1,6 @@
 import type { PluginListenerHandle } from '@capacitor/core';
 import { Capacitor } from '@capacitor/core';
+import type { EventEmitter } from 'events';
 
 import type { DisplayStrings } from './config';
 import { dataViewToHexString, hexStringToDataView } from './conversion';
@@ -266,7 +267,7 @@ class BleClientClass implements BleClientInterface {
   async startEnabledNotifications(callback: (value: boolean) => void): Promise<void> {
     await this.queue(async () => {
       const key = `onEnabledChanged`;
-      await this.eventListeners.get(key)?.remove();
+      await this.removeListener(key, this.eventListeners.get(key));
       const listener = await BluetoothLe.addListener(key, (result) => {
         callback(result.value);
       });
@@ -278,7 +279,7 @@ class BleClientClass implements BleClientInterface {
   async stopEnabledNotifications(): Promise<void> {
     await this.queue(async () => {
       const key = `onEnabledChanged`;
-      await this.eventListeners.get(key)?.remove();
+      await this.removeListener(key, this.eventListeners.get(key));
       this.eventListeners.delete(key);
       await BluetoothLe.stopEnabledNotifications();
     });
@@ -326,8 +327,9 @@ class BleClientClass implements BleClientInterface {
 
   async requestLEScan(options: RequestBleDeviceOptions, callback: (result: ScanResult) => void): Promise<void> {
     await this.queue(async () => {
-      await this.scanListener?.remove();
-      this.scanListener = await BluetoothLe.addListener('onScanResult', (resultInternal: ScanResultInternal) => {
+      const key = 'onScanResult';
+      await this.removeListener(key, this.scanListener);
+      this.scanListener = await BluetoothLe.addListener(key, (resultInternal: ScanResultInternal) => {
         const result: ScanResult = {
           ...resultInternal,
           manufacturerData: this.convertObject(resultInternal.manufacturerData),
@@ -344,7 +346,8 @@ class BleClientClass implements BleClientInterface {
 
   async stopLEScan(): Promise<void> {
     await this.queue(async () => {
-      await this.scanListener?.remove();
+      const key = 'onScanResult';
+      await this.removeListener(key, this.scanListener);
       this.scanListener = null;
       await BluetoothLe.stopLEScan();
     });
@@ -368,7 +371,7 @@ class BleClientClass implements BleClientInterface {
     await this.queue(async () => {
       if (onDisconnect) {
         const key = `disconnected|${deviceId}`;
-        await this.eventListeners.get(key)?.remove();
+        await this.removeListener(key, this.eventListeners.get(key));
         const listener = await BluetoothLe.addListener(key, () => {
           onDisconnect(deviceId);
         });
@@ -485,7 +488,7 @@ class BleClientClass implements BleClientInterface {
     characteristic = validateUUID(characteristic);
     await this.queue(async () => {
       const key = `notification|${deviceId}|${service}|${characteristic}`;
-      await this.eventListeners.get(key)?.remove();
+      await this.removeListener(key, this.eventListeners.get(key));
       const listener = await BluetoothLe.addListener(key, (event: ReadResult) => {
         callback(this.convertValue(event?.value));
       });
@@ -503,7 +506,7 @@ class BleClientClass implements BleClientInterface {
     characteristic = validateUUID(characteristic);
     await this.queue(async () => {
       const key = `notification|${deviceId}|${service}|${characteristic}`;
-      await this.eventListeners.get(key)?.remove();
+      await this.removeListener(key, this.eventListeners.get(key));
       this.eventListeners.delete(key);
       await BluetoothLe.stopNotifications({
         deviceId,
@@ -511,6 +514,20 @@ class BleClientClass implements BleClientInterface {
         characteristic,
       });
     });
+  }
+
+  private async removeListener(key: string, listener?: PluginListenerHandle | string | null): Promise<void> {
+    if (listener == null) {
+      return;
+    }
+    if (typeof listener === 'string') {
+      const ble = BluetoothLe as unknown as EventEmitter;
+      if (ble.removeAllListeners != null) {
+        ble.removeAllListeners(key);
+      }
+      return;
+    }
+    await listener.remove();
   }
 
   private convertValue(value?: Data): DataView {

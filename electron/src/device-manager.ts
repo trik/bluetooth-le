@@ -20,11 +20,15 @@ export interface ServiceInternal extends Pick<noble.Service, 'uuid' | 'name' | '
   characteristics: CharacteristicInternal[];
 }
 
+export interface AdvertisementInternal
+  extends Pick<noble.Advertisement, 'localName' | 'txPowerLevel' | 'serviceUuids'> {
+  serviceData: { uuid: string; data: string }[];
+  manufacturerData?: string;
+}
+
 export interface PeripheralInternal
-  extends Pick<
-    noble.Peripheral,
-    'id' | 'uuid' | 'address' | 'addressType' | 'connectable' | 'advertisement' | 'rssi' | 'state'
-  > {
+  extends Pick<noble.Peripheral, 'id' | 'uuid' | 'address' | 'addressType' | 'connectable' | 'rssi' | 'state'> {
+  advertisement: AdvertisementInternal;
   services: ServiceInternal[];
 }
 
@@ -255,10 +259,16 @@ export class DeviceManager extends EventEmitter {
       address,
       addressType,
       connectable,
-      advertisement,
+      advertisement: {
+        ...advertisement,
+        serviceData: (advertisement.serviceData || []).map((s) => ({ ...s, data: s.data.toString('base64') })),
+        manufacturerData: advertisement.manufacturerData
+          ? advertisement.manufacturerData.toString('base64')
+          : undefined,
+      },
       rssi,
       state,
-      services: services.map((s) => this.getServiceInternal(s)),
+      services: (services || []).map((s) => this.getServiceInternal(s)),
     };
   }
 
@@ -269,7 +279,7 @@ export class DeviceManager extends EventEmitter {
       name,
       type,
       includedServiceUuids,
-      characteristics: characteristics.map((c) => this.getCharacteristicInternal(c)),
+      characteristics: (characteristics || []).map((c) => this.getCharacteristicInternal(c)),
     };
   }
 
@@ -280,7 +290,7 @@ export class DeviceManager extends EventEmitter {
       name,
       type,
       properties,
-      descriptors: descriptors.map((d) => this.getDescriptorInternal(d)),
+      descriptors: (descriptors || []).map((d) => this.getDescriptorInternal(d)),
     };
   }
 
